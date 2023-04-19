@@ -33,13 +33,11 @@ class PineconeVectorClient(BaseModel):
 
     @root_validator(pre=True)
     def session_validation(cls, v):
-        session = v.get(
-            "session",
-            ClientSession(
-                raise_for_status=True, headers={"Api-Key": v["api_key"]}
-            ),
-        )
-        v["session"] = session
+        if "session" in v:
+            v['session'].headers["Api-Key"] = v["api_key"]
+        else:
+            v["session"] = ClientSession(raise_for_status=True, headers={"Api-Key": v["api_key"]})
+        return v
 
     @property
     def base_url(self) -> str:
@@ -78,13 +76,13 @@ class PineconeVectorClient(BaseModel):
     async def _json_request(
         self,
         method,
-        path,
+        url,
         request_model_instance: Optional[BaseModel] = None,
         response_model: Optional[Type[PydanticModelT]] = None,
     ) -> Optional[PydanticModelT]:
         async with self.session.request(
             method,
-            self.path(path),
+            url,
             json=None
             if request_model_instance is None
             else request_model_instance.dict(),
@@ -103,9 +101,7 @@ class PineconeVectorClient(BaseModel):
         )
 
     async def delete(self, request: DeleteRequest) -> None:
-        return await self._json_request(
-            "DELETE", self.path("vectors/delete"), request
-        )
+        return await self._json_request("DELETE", self.path("vectors/delete"), request)
 
     async def fetch(self, params: FetchParams) -> FetchResponse:
         url = self.path(
@@ -114,11 +110,7 @@ class PineconeVectorClient(BaseModel):
         return await self._json_request("GET", url, None, FetchResponse)
 
     async def update(self, request: UpdateRequest) -> None:
-        return await self._json_request(
-            "POST", self.path("vectors/update"), request
-        )
+        return await self._json_request("POST", self.path("vectors/update"), request)
 
     async def upsert(self, request: UpsertRequest) -> None:
-        return await self._json_request(
-            "POST", self.path("vectors/upsert"), request
-        )
+        return await self._json_request("POST", self.path("vectors/upsert"), request)
