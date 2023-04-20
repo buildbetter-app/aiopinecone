@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Optional
+from typing import Any, Dict, Optional, Union
 from typing import overload
 from typing import Type
 from typing import TypeVar
@@ -97,7 +97,7 @@ class PineconeVectorClient(BaseModel):
         self,
         method,
         path,
-        request_model_instance: Optional[BaseModel] = None,
+        request_model_instance: Optional[Union[BaseModel, Dict[str, Any]]] = None,
         response_model: Type[PydanticModelT] = None,
     ) -> PydanticModelT:
         ...
@@ -106,7 +106,7 @@ class PineconeVectorClient(BaseModel):
         self,
         method,
         url,
-        request_model_instance: Optional[BaseModel] = None,
+        request_model_instance: Optional[Union[BaseModel, Dict[str, Any]]] = None,
         response_model: Optional[Type[PydanticModelT]] = None,
     ) -> Optional[PydanticModelT]:
         if self.retry:
@@ -124,15 +124,18 @@ class PineconeVectorClient(BaseModel):
         self,
         method,
         url,
-        request_model_instance: Optional[BaseModel] = None,
+        request_model_instance: Optional[Union[BaseModel, Dict[str, Any]]] = None,
         response_model: Optional[Type[PydanticModelT]] = None,
     ) -> Optional[PydanticModelT]:
+        data = None
+        if isinstance(request_model_instance, BaseModel):
+            data = request_model_instance.dict()
+        elif isinstance(request_model_instance, dict):
+            data = request_model_instance
         async with self.session.request(
             method,
             url,
-            json=None
-            if request_model_instance is None
-            else request_model_instance.dict(),
+            json=data,
         ) as resp:
             if not (200 <= resp.status < 300):
                 raise Exception(f"Request failed with status {resp.status} and body {await resp.text()}")
@@ -144,22 +147,22 @@ class PineconeVectorClient(BaseModel):
             "GET", self.base_path(f"databases/{self.index}"), None, IndexMeta
         )
 
-    async def query(self, request: QueryRequest) -> QueryResponse:
+    async def query(self, request: Union[QueryRequest, Dict[str, Any]]) -> QueryResponse:
         return await self._json_request(
             "POST", self.path("query"), request, QueryResponse
         )
 
-    async def delete(self, request: DeleteRequest) -> None:
+    async def delete(self, request: Union[DeleteRequest, Dict[str, Any]]) -> None:
         return await self._json_request("DELETE", self.path("vectors/delete"), request)
 
-    async def fetch(self, params: FetchParams) -> FetchResponse:
+    async def fetch(self, params: Union[FetchParams, Dict[str, Any]]) -> FetchResponse:
         url = self.path(
             f"vectors/fetch?{urlencode(params, doseq=True, quote_via=quote)}"
         )
         return await self._json_request("GET", url, None, FetchResponse)
 
-    async def update(self, request: UpdateRequest) -> None:
+    async def update(self, request: Union[UpdateRequest, Dict[str, Any]]) -> None:
         return await self._json_request("POST", self.path("vectors/update"), request)
 
-    async def upsert(self, request: UpsertRequest) -> UpsertResponse:
+    async def upsert(self, request: Union[UpsertRequest, Dict[str, Any]]) -> UpsertResponse:
         return await self._json_request("POST", self.path("vectors/upsert"), request, UpsertResponse)
