@@ -134,6 +134,8 @@ class PineconeVectorClient(BaseModel):
             if request_model_instance is None
             else request_model_instance.dict(),
         ) as resp:
+            if not (200 <= resp.status < 300):
+                raise Exception(f"Request failed with status {resp.status} and body {await resp.text()}")
             if response_model and self.parse:
                 return response_model(**await resp.json())
 
