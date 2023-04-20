@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "aiopinecone"
-version = "0.1.3"
+version = "0.1.4"
 description = "An asyncio-compatible client for Pinecone DB"
 authors = ["Nikhil Shinday <nikhil@buildbetter.app>"]
 license = "MIT"

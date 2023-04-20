@@ -16,6 +16,7 @@ from aiopinecone.schemas import QueryResponse
 from aiopinecone.schemas.custom import FetchParams
 from aiopinecone.schemas.generated import UpdateRequest
 from aiopinecone.schemas.generated import UpsertRequest
+from aiopinecone.schemas.generated import UpsertResponse
 from pydantic import BaseModel
 from pydantic import root_validator
 from tenacity import BaseRetrying
@@ -34,6 +35,7 @@ class PineconeVectorClient(BaseModel):
     session: ClientSession
     retry: bool = False
     retryer: Optional[BaseRetrying] = None
+    parse: bool = True
 
     @root_validator(pre=True)
     def session_validation(cls, v):
@@ -132,7 +134,7 @@ class PineconeVectorClient(BaseModel):
             if request_model_instance is None
             else request_model_instance.dict(),
         ) as resp:
-            if response_model:
+            if response_model and self.parse:
                 return response_model(**await resp.json())
 
     async def describe_index(self) -> IndexMeta:
@@ -157,5 +159,5 @@ class PineconeVectorClient(BaseModel):
     async def update(self, request: UpdateRequest) -> None:
         return await self._json_request("POST", self.path("vectors/update"), request)
 
-    async def upsert(self, request: UpsertRequest) -> None:
+    async def upsert(self, request: UpsertRequest) -> UpsertResponse:
         return await self._json_request("POST", self.path("vectors/upsert"), request)
