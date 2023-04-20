@@ -52,6 +52,12 @@ class PineconeVectorClient(BaseModel):
 
     def path(self, path: str) -> str:
         return f"{self.index_url}/{path}"
+    
+    async def __aenter__(self):
+        return self
+    
+    async def __aexit__(self, *args):
+        await self.session.close()
 
     @overload
     async def _json_request(
