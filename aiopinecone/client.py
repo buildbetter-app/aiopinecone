@@ -1,3 +1,4 @@
+from functools import cached_property
 from typing import Optional
 from typing import overload
 from typing import Type
@@ -6,9 +7,7 @@ from urllib.parse import quote
 from urllib.parse import urlencode
 
 from aiohttp import ClientSession
-from pydantic import BaseModel
-from pydantic import root_validator
-
+from aiopinecone.retry import get_retryer
 from aiopinecone.schemas import DeleteRequest
 from aiopinecone.schemas import FetchResponse
 from aiopinecone.schemas import IndexMeta
@@ -17,6 +16,9 @@ from aiopinecone.schemas import QueryResponse
 from aiopinecone.schemas.custom import FetchParams
 from aiopinecone.schemas.generated import UpdateRequest
 from aiopinecone.schemas.generated import UpsertRequest
+from pydantic import BaseModel
+from pydantic import root_validator
+from tenacity import BaseRetrying
 
 PydanticModelT = TypeVar("PydanticModelT", bound=BaseModel)
 
@@ -30,13 +32,24 @@ class PineconeVectorClient(BaseModel):
     index: str
     project_id: str
     session: ClientSession
+    retry: bool = False
+    retryer: Optional[BaseRetrying] = None
 
     @root_validator(pre=True)
     def session_validation(cls, v):
         if "session" in v:
-            v['session'].headers["Api-Key"] = v["api_key"]
+            v["session"].headers["Api-Key"] = v["api_key"]
         else:
-            v["session"] = ClientSession(raise_for_status=True, headers={"Api-Key": v["api_key"]})
+            v["session"] = ClientSession(
+                raise_for_status=True, headers={"Api-Key": v["api_key"]}
+            )
+        return v
+
+    @root_validator
+    def retry_validation(cls, v):
+        if v["retry"]:
+            if v["retryer"] is None:
+                v["retryer"] = get_retryer()
         return v
 
     @property
@@ -52,12 +65,20 @@ class PineconeVectorClient(BaseModel):
 
     def path(self, path: str) -> str:
         return f"{self.index_url}/{path}"
-    
+
     async def __aenter__(self):
         return self
-    
+
     async def __aexit__(self, *args):
         await self.session.close()
+    
+
+    @cached_property
+    def _retryable_json_request(self):
+        if self.retry:
+            if self.retryer:
+                return self.retryer(self._json_request_inner)
+        raise ValueError("Cannot get retryable json request")
 
     @overload
     async def _json_request(
@@ -80,6 +101,24 @@ class PineconeVectorClient(BaseModel):
         ...
 
     async def _json_request(
+        self,
+        method,
+        url,
+        request_model_instance: Optional[BaseModel] = None,
+        response_model: Optional[Type[PydanticModelT]] = None,
+    ) -> Optional[PydanticModelT]:
+        if self.retry:
+            return await self.retryer(self._json_request_inner)(
+                method,
+                url,
+                request_model_instance,
+                response_model,
+            )
+        return await self._json_request_inner(
+            method, url, request_model_instance, response_model
+        )
+
+    async def _json_request_inner(
         self,
         method,
         url,
