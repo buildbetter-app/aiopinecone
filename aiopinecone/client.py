@@ -160,4 +160,4 @@ class PineconeVectorClient(BaseModel):
         return await self._json_request("POST", self.path("vectors/update"), request)
 
     async def upsert(self, request: UpsertRequest) -> UpsertResponse:
-        return await self._json_request("POST", self.path("vectors/upsert"), request)
+        return await self._json_request("POST", self.path("vectors/upsert"), request, UpsertResponse)
